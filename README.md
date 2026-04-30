@@ -1,4 +1,4 @@
-smart-pomodoro
+
 smart-pomodoro/
 ├── pomodoro_ai.py          # ✅ Votre application principale
 ├── README.md               # ⚠️ À créer (voir modèle ci-dessous)
