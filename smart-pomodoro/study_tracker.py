@@ -1,308 +1,238 @@
 """
-predictor.py
-------------
-Deux responsabilités :
-  1. PomodoroPredictor  — utilise TimesFM (Google) pour prédire les prochaines
-                          sessions de focus à partir de l'historique.
-  2. ClaudeAdvisor      — envoie les stats + prédictions à l'API Claude pour
-                          obtenir des conseils personnalisés.
+study_tracker.py
+-----------------
+Gère la persistance des sessions de focus (Pomodoro).
+Stocke chaque session dans un fichier JSON local et expose
+des méthodes pour lire/analyser l'historique.
 """
 
-from __future__ import annotations
-
+import json
 import os
+from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional
 
-# TimesFM : modèle de prévision de séries temporelles de Google
-try:
-    import timesfm
-    TIMESFM_AVAILABLE = True
-except ImportError:
-    TIMESFM_AVAILABLE = False
-    print("⚠️  TimesFM non installé. Utilisation du fallback statistique.")
 
-# Anthropic SDK
-try:
-    import anthropic
-    ANTHROPIC_AVAILABLE = True
-except ImportError:
-    ANTHROPIC_AVAILABLE = False
-    print("⚠️  SDK Anthropic non installé. pip install anthropic")
+DATA_FILE = Path("sessions.json")
 
 
-# ===================================================================== #
-#  1. PRÉDICTION TIMESFM
-# ===================================================================== #
-
-class PomodoroPredictor:
+class StudyTracker:
     """
-    Prédit les minutes de focus pour les prochains jours
-    à partir d'une série temporelle historique.
+    Enregistre et analyse les sessions de travail/focus.
 
-    Utilise TimesFM si disponible, sinon retombe sur une
-    moyenne mobile pondérée (fallback déterministe).
+    Structure d'une session :
+    {
+        "date":       "2025-04-30",
+        "start_time": "14:32:00",
+        "duration":   25,          # minutes
+        "completed":  True,
+        "type":       "work"       # "work" | "short_break" | "long_break"
+    }
     """
 
-    def __init__(self, horizon: int = 7):
-        """
-        Args:
-            horizon: Nombre de jours à prédire (défaut 7).
-        """
-        self.horizon = horizon
-        self._model  = None
+    def __init__(self, data_file: Path = DATA_FILE):
+        self.data_file = data_file
+        self.sessions: list[dict] = self._load()
 
-    def _load_model(self) -> None:
-        """Charge le modèle TimesFM (lazy loading)."""
-        if self._model is not None or not TIMESFM_AVAILABLE:
-            return
-        print("⏳ Chargement de TimesFM (première fois ~30s)...")
-        self._model = timesfm.TimesFm(
-            hparams=timesfm.TimesFmHparams(
-                backend="torch",
-                per_core_batch_size=32,
-                horizon_len=self.horizon,
-            ),
-            checkpoint=timesfm.TimesFmCheckpoint(
-                huggingface_repo_id="google/timesfm-1.0-200m-pytorch"
-            ),
-        )
-        print("✅ TimesFM chargé.")
+    # ------------------------------------------------------------------ #
+    #  Persistance
+    # ------------------------------------------------------------------ #
 
-    def predict(self, time_series: list[float]) -> list[float]:
-        """
-        Prédit `horizon` valeurs futures à partir de la série.
+    def _load(self) -> list[dict]:
+        """Charge les sessions depuis le fichier JSON."""
+        if self.data_file.exists():
+            try:
+                with open(self.data_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, IOError):
+                return []
+        return []
 
-        Args:
-            time_series: Liste de minutes de focus par jour (ordre chronologique).
+    def _save(self) -> None:
+        """Persiste toutes les sessions sur le disque."""
+        with open(self.data_file, "w", encoding="utf-8") as f:
+            json.dump(self.sessions, f, indent=2, ensure_ascii=False)
 
-        Returns:
-            Liste de `horizon` valeurs prédites (minutes/jour).
-        """
-        if len(time_series) < 7:
-            return self._fallback(time_series)
+    # ------------------------------------------------------------------ #
+    #  Ajout de sessions
+    # ------------------------------------------------------------------ #
 
-        if TIMESFM_AVAILABLE:
-            return self._predict_timesfm(time_series)
-        return self._fallback(time_series)
-
-    def _predict_timesfm(self, series: list[float]) -> list[float]:
-        """Prédiction via TimesFM."""
-        try:
-            self._load_model()
-            import numpy as np
-
-            # TimesFM attend : liste de tableaux numpy, + longueurs de contexte
-            forecast_input = [np.array(series, dtype=np.float32)]
-            freq_input     = [0]   # 0 = fréquence non connue / journalière
-
-            _, predictions = self._model.forecast(
-                inputs=forecast_input,
-                freq=freq_input,
-            )
-            # predictions[0] → tableau de shape (horizon,) ou (horizon, quantiles)
-            preds = predictions[0]
-            if hasattr(preds, "__len__") and len(preds.shape) > 1:
-                preds = preds[:, 0]   # médiane (quantile 0.5)
-
-            # Clamp : les minutes ne peuvent pas être négatives
-            return [max(0.0, round(float(v), 1)) for v in preds[:self.horizon]]
-
-        except Exception as e:
-            print(f"⚠️  TimesFM error : {e} — fallback activé.")
-            return self._fallback(series)
-
-    def _fallback(self, series: list[float]) -> list[float]:
-        """
-        Fallback : moyenne mobile exponentielle (EMA) sur les 7 derniers jours.
-        Simple, rapide, interprétable.
-        """
-        if not series:
-            return [0.0] * self.horizon
-
-        window = series[-min(14, len(series)):]
-        alpha  = 0.3          # lissage EMA
-        ema    = window[0]
-        for v in window[1:]:
-            ema = alpha * v + (1 - alpha) * ema
-
-        # Légère tendance : +/- 5 % selon les 3 derniers jours vs EMA
-        recent_avg = sum(window[-3:]) / min(3, len(window))
-        trend      = (recent_avg - ema) / max(ema, 1) * 0.05
-
-        predictions = []
-        val = ema
-        for _ in range(self.horizon):
-            val = max(0.0, val * (1 + trend))
-            predictions.append(round(val, 1))
-        return predictions
-
-    def format_predictions(
+    def add_session(
         self,
-        predictions: list[float],
-        start_label: str = "Demain",
-    ) -> list[dict]:
+        duration: int,
+        session_type: str = "work",
+        completed: bool = True,
+        timestamp: Optional[datetime] = None,
+    ) -> dict:
         """
-        Enrichit les prédictions brutes avec des labels et des niveaux.
+        Enregistre une nouvelle session terminée.
+
+        Args:
+            duration:     Durée en minutes.
+            session_type: "work", "short_break" ou "long_break".
+            completed:    False si la session a été interrompue.
+            timestamp:    Datetime personnalisé (défaut : maintenant).
 
         Returns:
-            [{"day": "Demain", "minutes": 75.0, "formatted": "1h 15m", "level": "good"}, ...]
+            Le dict de la session enregistrée.
         """
-        from datetime import datetime, timedelta
+        now = timestamp or datetime.now()
+        session = {
+            "date":       now.strftime("%Y-%m-%d"),
+            "start_time": now.strftime("%H:%M:%S"),
+            "duration":   duration,
+            "completed":  completed,
+            "type":       session_type,
+        }
+        self.sessions.append(session)
+        self._save()
+        return session
 
-        result = []
-        labels = [start_label] + [
-            (datetime.now() + timedelta(days=i + 1)).strftime("%a %d/%m")
-            for i in range(1, self.horizon)
+    # ------------------------------------------------------------------ #
+    #  Requêtes
+    # ------------------------------------------------------------------ #
+
+    def get_today_sessions(self) -> list[dict]:
+        """Renvoie toutes les sessions du jour courant."""
+        today = datetime.now().strftime("%Y-%m-%d")
+        return [s for s in self.sessions if s["date"] == today]
+
+    def get_sessions_last_n_days(self, n: int = 30) -> list[dict]:
+        """Renvoie les sessions des n derniers jours."""
+        cutoff = (datetime.now() - timedelta(days=n)).strftime("%Y-%m-%d")
+        return [s for s in self.sessions if s["date"] >= cutoff]
+
+    def get_daily_totals(self, n_days: int = 30) -> dict[str, float]:
+        """
+        Calcule le total de minutes de focus par jour sur les n derniers jours.
+
+        Returns:
+            { "2025-04-30": 75.0, "2025-04-29": 50.0, ... }
+        """
+        sessions = self.get_sessions_last_n_days(n_days)
+        totals: dict[str, float] = {}
+        for s in sessions:
+            if s["type"] == "work" and s["completed"]:
+                totals[s["date"]] = totals.get(s["date"], 0) + s["duration"]
+        return dict(sorted(totals.items()))
+
+    def get_stats_today(self) -> dict:
+        """Résumé des statistiques du jour."""
+        sessions = self.get_today_sessions()
+        work_sessions = [s for s in sessions if s["type"] == "work" and s["completed"]]
+        total_minutes = sum(s["duration"] for s in work_sessions)
+        return {
+            "sessions_count":  len(work_sessions),
+            "total_minutes":   total_minutes,
+            "total_formatted": self._fmt_minutes(total_minutes),
+            "avg_duration":    total_minutes / len(work_sessions) if work_sessions else 0,
+        }
+
+    def get_weekly_stats(self) -> dict:
+        """Statistiques de la semaine courante (lundi → aujourd'hui)."""
+        sessions = self.get_sessions_last_n_days(7)
+        work_sessions = [s for s in sessions if s["type"] == "work" and s["completed"]]
+        total = sum(s["duration"] for s in work_sessions)
+        return {
+            "sessions_count":  len(work_sessions),
+            "total_minutes":   total,
+            "total_formatted": self._fmt_minutes(total),
+            "daily_avg":       round(total / 7, 1),
+        }
+
+    def get_streak(self) -> int:
+        """
+        Calcule le streak courant : nombre de jours consécutifs avec
+        au moins une session de travail complétée.
+        """
+        daily = self.get_daily_totals(n_days=365)
+        if not daily:
+            return 0
+
+        streak = 0
+        current = datetime.now().date()
+
+        while True:
+            key = current.strftime("%Y-%m-%d")
+            if daily.get(key, 0) > 0:
+                streak += 1
+                current -= timedelta(days=1)
+            else:
+                break
+        return streak
+
+    # ------------------------------------------------------------------ #
+    #  Utilitaires
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _fmt_minutes(minutes: float) -> str:
+        """Formate 95 → '1h 35m'."""
+        h, m = divmod(int(minutes), 60)
+        return f"{h}h {m:02d}m" if h else f"{m}m"
+
+    def get_time_series_for_prediction(self, n_days: int = 60) -> list[float]:
+        """
+        Retourne une série temporelle de minutes/jour pour TimesFM.
+        Les jours sans données sont remplis avec 0.
+        """
+        totals = self.get_daily_totals(n_days)
+        end   = datetime.now().date()
+        start = end - timedelta(days=n_days - 1)
+        series = []
+        current = start
+        while current <= end:
+            key = current.strftime("%Y-%m-%d")
+            series.append(float(totals.get(key, 0.0)))
+            current += timedelta(days=1)
+        return series
+
+    def summary_for_claude(self) -> str:
+        """
+        Génère un résumé textuel structuré à injecter dans le prompt Claude.
+        """
+        today   = self.get_stats_today()
+        weekly  = self.get_weekly_stats()
+        streak  = self.get_streak()
+        totals  = self.get_daily_totals(7)
+
+        lines = [
+            "=== Résumé des sessions de focus ===",
+            f"Aujourd'hui      : {today['total_formatted']} ({today['sessions_count']} sessions)",
+            f"Cette semaine    : {weekly['total_formatted']} ({weekly['sessions_count']} sessions)",
+            f"Moyenne/jour     : {self._fmt_minutes(weekly['daily_avg'])}",
+            f"Streak actuel    : {streak} jours",
+            "",
+            "Détail des 7 derniers jours :",
         ]
-
-        for i, (label, mins) in enumerate(zip(labels, predictions)):
-            result.append({
-                "day":       label,
-                "minutes":   mins,
-                "formatted": self._fmt_minutes(mins),
-                "level":     self._level(mins),
-            })
-        return result
-
-    @staticmethod
-    def _fmt_minutes(m: float) -> str:
-        h, mn = divmod(int(m), 60)
-        return f"{h}h {mn:02d}m" if h else f"{mn}m"
-
-    @staticmethod
-    def _level(minutes: float) -> str:
-        """Classe de productivité basée sur les minutes."""
-        if minutes >= 120:  return "excellent"
-        if minutes >= 75:   return "good"
-        if minutes >= 40:   return "moderate"
-        return "low"
+        for date, mins in sorted(totals.items()):
+            lines.append(f"  {date} : {self._fmt_minutes(mins)}")
+        return "\n".join(lines)
 
 
-# ===================================================================== #
-#  2. CONSEILS CLAUDE
-# ===================================================================== #
-
-class ClaudeAdvisor:
-    """
-    Envoie les statistiques + prédictions TimesFM à l'API Claude
-    pour obtenir des conseils de productivité personnalisés.
-    """
-
-    MODEL   = "claude-opus-4-5"
-    MAX_TOKENS = 600
-
-    SYSTEM_PROMPT = """Tu es un coach de productivité expert intégré dans une app Pomodoro.
-Tu analyses les données de sessions de focus d'un utilisateur et tu fournis :
-- Une analyse brève de ses habitudes (2-3 phrases)
-- 2-3 conseils concrets et actionnables basés sur ses vraies données
-- Une encouragement motivant personnalisé
-
-Sois direct, bienveillant, et utilise les chiffres fournis dans ta réponse.
-Réponds toujours en français. Maximum 200 mots."""
-
-    def __init__(self, api_key: Optional[str] = None):
-        """
-        Args:
-            api_key: Clé API Anthropic. Si None, utilise ANTHROPIC_API_KEY env.
-        """
-        key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
-        if ANTHROPIC_AVAILABLE and key:
-            self.client = anthropic.Anthropic(api_key=key)
-        else:
-            self.client = None
-            if not key:
-                print("⚠️  ANTHROPIC_API_KEY non définie.")
-
-    def get_advice(
-        self,
-        stats_summary: str,
-        predictions: list[dict],
-        user_question: Optional[str] = None,
-    ) -> str:
-        """
-        Demande des conseils à Claude basés sur les stats + prédictions.
-
-        Args:
-            stats_summary:  Texte produit par StudyTracker.summary_for_claude().
-            predictions:    Liste de dicts formatés par PomodoroPredictor.format_predictions().
-            user_question:  Question optionnelle de l'utilisateur.
-
-        Returns:
-            Réponse textuelle de Claude.
-        """
-        if not self.client:
-            return self._fallback_advice(stats_summary, predictions)
-
-        pred_text = "\n".join(
-            f"  {p['day']}: {p['formatted']} (niveau: {p['level']})"
-            for p in predictions
-        )
-
-        user_msg = f"""{stats_summary}
-
-=== Prédictions TimesFM pour les 7 prochains jours ===
-{pred_text}
-
-=== Question de l'utilisateur ===
-{user_question or "Analyse mes données et donne-moi tes meilleurs conseils."}"""
-
-        try:
-            response = self.client.messages.create(
-                model=self.MODEL,
-                max_tokens=self.MAX_TOKENS,
-                system=self.SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_msg}],
-            )
-            return response.content[0].text.strip()
-
-        except anthropic.AuthenticationError:
-            return "❌ Clé API Anthropic invalide. Vérifiez ANTHROPIC_API_KEY."
-        except anthropic.RateLimitError:
-            return "⏳ Limite de débit atteinte. Réessayez dans quelques secondes."
-        except Exception as e:
-            return f"❌ Erreur API Claude : {e}"
-
-    @staticmethod
-    def _fallback_advice(stats_summary: str, predictions: list[dict]) -> str:
-        """Conseil générique si l'API n'est pas disponible."""
-        avg_pred = sum(p["minutes"] for p in predictions) / max(len(predictions), 1)
-        return (
-            f"📊 Analyse locale (Claude non disponible)\n\n"
-            f"Vos prédictions moyennes : {int(avg_pred)} min/jour la semaine prochaine.\n"
-            f"Conseil : Maintenez des sessions régulières de 25 min avec 5 min de pause.\n"
-            f"Essayez de travailler aux mêmes heures chaque jour pour ancrer l'habitude."
-        )
-
-
-# ===================================================================== #
+# ------------------------------------------------------------------ #
 #  Test rapide
-# ===================================================================== #
+# ------------------------------------------------------------------ #
 if __name__ == "__main__":
-    # Série simulée : 60 jours de données
-    import random
-    random.seed(42)
-    series = [random.uniform(30, 120) for _ in range(60)]
-    # Tendance haussière sur les 2 dernières semaines
-    for i in range(46, 60):
-        series[i] += 20
+    import tempfile, shutil
 
-    predictor   = PomodoroPredictor(horizon=7)
-    raw_preds   = predictor.predict(series)
-    rich_preds  = predictor.format_predictions(raw_preds)
+    # Utilise un fichier temporaire pour les tests
+    tmp = Path(tempfile.mkdtemp()) / "test_sessions.json"
+    tracker = StudyTracker(data_file=tmp)
 
-    print("=== Prédictions ===")
-    for p in rich_preds:
-        bar = "█" * int(p["minutes"] / 10)
-        print(f"  {p['day']:15s} {p['formatted']:8s}  {bar}")
+    # Simule 5 jours de sessions
+    from datetime import datetime, timedelta
+    base = datetime.now() - timedelta(days=4)
+    for d in range(5):
+        day = base + timedelta(days=d)
+        for _ in range(3):
+            tracker.add_session(25, "work", True, day)
+        tracker.add_session(5, "short_break", True, day)
 
-    # Test Claude (nécessite ANTHROPIC_API_KEY)
-    stats_mock = """=== Résumé des sessions de focus ===
-Aujourd'hui      : 1h 15m (3 sessions)
-Cette semaine    : 6h 30m (18 sessions)
-Moyenne/jour     : 55m
-Streak actuel    : 5 jours"""
+    print(tracker.summary_for_claude())
+    print("\nSérie temporelle (7 derniers jours) :")
+    print(tracker.get_time_series_for_prediction(7))
+    print(f"\nStreak : {tracker.get_streak()} jours")
 
-    advisor = ClaudeAdvisor()
-    advice  = advisor.get_advice(stats_mock, rich_preds, "Comment améliorer mon streak ?")
-    print("\n=== Conseils Claude ===")
-    print(advice)
+    shutil.rmtree(tmp.parent)
+    print("\n✅ Tests passés.")

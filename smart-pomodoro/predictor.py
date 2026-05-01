@@ -1,4 +1,12 @@
-
+"""
+predictor.py
+------------
+Deux responsabilités :
+  1. PomodoroPredictor  — utilise TimesFM (Google) pour prédire les prochaines
+                          sessions de focus à partir de l'historique.
+  2. ClaudeAdvisor      — envoie les stats + prédictions à l'API Claude pour
+                          obtenir des conseils personnalisés.
+"""
 
 from __future__ import annotations
 
