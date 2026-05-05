@@ -1,0 +1,492 @@
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#080b10;--surf:#0e1118;--surf2:#141820;--surf3:#1a2030;
+    --border:#1f2535;--accent:#ff6b35;--accent2:#3d8bff;--accent3:#36d9a0;--accent4:#c87fff;
+    --text:#e8eaf2;--muted:#4a5268;--muted2:#6b7591;--yellow:#f0b429;--red:#e04545;--green:#36d9a0;
+  }
+  body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:0}
+  .app{display:grid;grid-template-columns:320px 1fr;min-height:600px;gap:0}
+  
+  /* LEFT PANEL */
+  .left{background:var(--surf);padding:28px 24px;display:flex;flex-direction:column;gap:20px;border-right:1px solid var(--border)}
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand-icon{width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+  .brand-text{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--accent);letter-spacing:2px}
+  
+  /* TIMER */
+  .timer-block{text-align:center;padding:20px 0 12px}
+  .mode-badge{display:inline-flex;align-items:center;gap:6px;background:var(--surf3);border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:16px}
+  .mode-dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  .timer-display{font-family:'JetBrains Mono',monospace;font-size:72px;font-weight:700;color:var(--accent);letter-spacing:-2px;line-height:1;text-shadow:0 0 40px rgba(255,107,53,0.3)}
+  .session-info{font-size:12px;color:var(--muted2);margin-top:10px;font-family:'JetBrains Mono',monospace;letter-spacing:1px}
+  
+  /* PROGRESS */
+  .progress-wrap{background:var(--surf3);border-radius:4px;height:5px;overflow:hidden;margin-top:4px}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),#ff9a3c);border-radius:4px;width:0%;transition:width 0.5s ease}
+  
+  /* CONTROLS */
+  .controls{display:flex;gap:8px}
+  .btn-primary{flex:1;background:var(--accent);color:white;border:none;border-radius:10px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:1px;transition:all 0.2s}
+  .btn-primary:hover{background:#ff8055;transform:translateY(-1px)}
+  .btn-ghost{background:var(--surf3);color:var(--muted2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer;transition:all 0.2s}
+  .btn-ghost:hover{background:var(--border);color:var(--text)}
+  
+  /* SETTINGS */
+  .settings-box{background:var(--surf2);border:1px solid var(--border);border-radius:12px;padding:16px}
+  .settings-title{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted2);letter-spacing:2px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .settings-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)}
+  .settings-row:last-child{border-bottom:none;padding-bottom:0}
+  .settings-label{font-size:12px;color:var(--muted2)}
+  .settings-val{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px}
+  .adj-btn{width:22px;height:22px;border-radius:5px;background:var(--surf3);border:1px solid var(--border);color:var(--muted2);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;transition:all 0.15s}
+  .adj-btn:hover{background:var(--border);color:var(--text)}
+  
+  /* RIGHT PANEL */
+  .right{background:var(--bg);display:flex;flex-direction:column}
+  
+  /* TABS */
+  .tabs{display:flex;gap:2px;padding:16px 20px 0;border-bottom:1px solid var(--border);background:var(--surf)}
+  .tab{padding:10px 16px;font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--muted2);cursor:pointer;border-radius:8px 8px 0 0;transition:all 0.2s;letter-spacing:0.5px;border-bottom:2px solid transparent;white-space:nowrap}
+  .tab:hover{color:var(--text);background:var(--surf2)}
+  .tab.active{color:var(--accent2);border-bottom-color:var(--accent2);background:var(--surf2)}
+  
+  /* TAB CONTENT */
+  .tab-content{display:none;padding:24px;flex:1;overflow-y:auto}
+  .tab-content.active{display:block}
+  
+  /* STATS */
+  .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
+  .stat-card{background:var(--surf);border:1px solid var(--border);border-radius:12px;padding:18px 16px}
+  .stat-label{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:8px}
+  .stat-value{font-size:28px;font-weight:600;line-height:1}
+  .stat-sub{font-size:12px;color:var(--muted2);margin-top:4px}
+  .accent-orange{color:var(--accent)}
+  .accent-blue{color:var(--accent2)}
+  .accent-green{color:var(--accent3)}
+  .accent-purple{color:var(--accent4)}
+  
+  /* CHART */
+  .chart-title{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted2);letter-spacing:2px;margin-bottom:16px}
+  .bar-chart{display:flex;align-items:flex-end;gap:8px;height:140px;padding-bottom:28px;position:relative}
+  .bar-chart::after{content:'';position:absolute;bottom:28px;left:0;right:0;height:1px;background:var(--border)}
+  .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;position:relative}
+  .bar{width:100%;border-radius:5px 5px 0 0;min-height:4px;position:relative;transition:all 0.3s}
+  .bar-val{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--muted2);position:absolute;top:-18px;width:100%;text-align:center}
+  .bar-day{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--muted2);position:absolute;bottom:-20px;width:100%;text-align:center}
+  
+  /* AI TAB */
+  .ai-input-row{display:flex;gap:10px;margin-bottom:16px}
+  .ai-input{flex:1;background:var(--surf);border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text);outline:none;transition:border-color 0.2s}
+  .ai-input:focus{border-color:var(--accent2)}
+  .ai-input::placeholder{color:var(--muted)}
+  .btn-ask{background:var(--accent);color:white;border:none;border-radius:10px;padding:12px 20px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all 0.2s}
+  .btn-ask:hover{background:#ff8055}
+  .ai-response{background:var(--surf);border:1px solid var(--border);border-radius:12px;padding:20px;font-size:13px;line-height:1.8;color:var(--accent4);min-height:120px;font-family:'JetBrains Mono',monospace;white-space:pre-wrap;margin-bottom:20px}
+  .predict-title{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted2);letter-spacing:2px;margin-bottom:12px}
+  .predict-bars{display:flex;align-items:flex-end;gap:6px;height:110px;padding-bottom:24px;position:relative}
+  .predict-bars::after{content:'';position:absolute;bottom:24px;left:0;right:0;height:1px;background:var(--border)}
+  .pbar-col{flex:1;display:flex;flex-direction:column;align-items:center;position:relative}
+  .pbar{width:100%;border-radius:5px 5px 0 0;min-height:4px}
+  .pbar-val{font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--muted2);position:absolute;top:-16px;width:100%;text-align:center}
+  .pbar-day{font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--muted2);position:absolute;bottom:-18px;width:100%;text-align:center}
+  
+  /* TODO / HABITS / GOALS */
+  .add-row{display:flex;gap:10px;margin-bottom:16px}
+  .add-input{flex:1;background:var(--surf);border:1px solid var(--border);border-radius:10px;padding:11px 16px;font-size:13px;color:var(--text);outline:none;transition:border-color 0.2s}
+  .add-input:focus{border-color:var(--accent3)}
+  .add-input::placeholder{color:var(--muted)}
+  .btn-add{background:var(--accent2);color:white;border:none;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all 0.2s}
+  .btn-add:hover{background:#5a9fff}
+  .item-row{display:flex;align-items:center;gap:10px;background:var(--surf);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;transition:border-color 0.2s}
+  .item-row:hover{border-color:var(--muted)}
+  .check-btn{width:26px;height:26px;border-radius:7px;border:1.5px solid var(--border);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted2);flex-shrink:0;transition:all 0.2s}
+  .check-btn.done{background:var(--green);border-color:var(--green);color:#000}
+  .item-text{flex:1;font-size:13px}
+  .item-text.done{color:var(--muted);text-decoration:line-through}
+  .del-btn{background:transparent;border:none;color:var(--muted);cursor:pointer;padding:4px;font-size:14px;transition:color 0.2s}
+  .del-btn:hover{color:var(--red)}
+  .streak-badge{background:var(--surf3);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--yellow)}
+  
+  /* GOALS */
+  .goal-card{background:var(--surf);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px}
+  .goal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .goal-name{font-size:14px;font-weight:500}
+  .goal-pct{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--accent2)}
+  .goal-bar-bg{background:var(--surf3);border-radius:4px;height:6px;overflow:hidden;margin-bottom:10px}
+  .goal-bar-fill{height:100%;background:var(--accent2);border-radius:4px;transition:width 0.4s ease}
+  .goal-nums{font-size:12px;color:var(--muted2);font-family:'JetBrains Mono',monospace;margin-bottom:12px}
+  .goal-actions{display:flex;gap:6px}
+  .btn-plus{background:var(--surf3);border:1px solid var(--border);border-radius:7px;padding:6px 14px;font-size:12px;color:var(--text);cursor:pointer;transition:all 0.2s}
+  .btn-plus:hover{background:var(--accent2);border-color:var(--accent2);color:#fff}
+  .btn-del-goal{background:transparent;border:1px solid var(--border);border-radius:7px;padding:6px 12px;font-size:12px;color:var(--muted);cursor:pointer;margin-left:auto;transition:all 0.2s}
+  .btn-del-goal:hover{border-color:var(--red);color:var(--red)}
+  
+  /* GOAL ADD ROW */
+  .goal-add{display:flex;gap:8px;margin-bottom:16px}
+  .goal-add .add-input{flex:2}
+  .goal-add .target-input{flex:1;background:var(--surf);border:1px solid var(--border);border-radius:10px;padding:11px 12px;font-size:13px;color:var(--text);outline:none;max-width:90px}
+  .goal-add .target-input:focus{border-color:var(--accent4)}
+  .btn-add-goal{background:var(--accent4);color:white;border:none;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s}
+  .btn-add-goal:hover{background:#d99fff}
+  
+  /* HABITS */
+  .habit-row{display:flex;align-items:center;gap:10px;background:var(--surf);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px}
+  .habit-fire{width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:transparent;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0}
+  .habit-fire.done{background:var(--surf3);border-color:var(--green)}
+  .habit-fire:not(.done):hover{background:rgba(240,180,41,0.1);border-color:var(--yellow)}
+
+  .empty-state{text-align:center;padding:40px 0;color:var(--muted);font-size:13px;font-family:'JetBrains Mono',monospace}
+</style>
+
+<h2 class="sr-only">FocusTrack — Smart Pomodoro Timer with AI predictions, stats, habits, and goals</h2>
+
+<div class="app">
+  <div class="left">
+    <div class="brand">
+      <div class="brand-icon">🍅</div>
+      <div class="brand-text">FOCUS TRACK</div>
+    </div>
+
+    <div class="timer-block">
+      <div class="mode-badge" id="modeBadge">
+        <div class="mode-dot" id="modeDot"></div>
+        <span id="modeText">DEEP FOCUS</span>
+      </div>
+      <div class="timer-display" id="timerDisplay">25:00</div>
+      <div class="session-info" id="sessionInfo">Session 1 / 4</div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+
+    <div class="controls">
+      <button class="btn-primary" id="startBtn" onclick="toggleTimer()">▶ START</button>
+      <button class="btn-ghost" onclick="skipSession()">⏭</button>
+      <button class="btn-ghost" onclick="resetTimer()">↺</button>
+    </div>
+
+    <div class="settings-box">
+      <div class="settings-title">⚙ CUSTOM TIMERS</div>
+      <div class="settings-row">
+        <div class="settings-label">Work (min)</div>
+        <div class="settings-val">
+          <button class="adj-btn" onclick="adjustSetting('work',-5)">−</button>
+          <span id="workVal">25</span>
+          <button class="adj-btn" onclick="adjustSetting('work',5)">+</button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-label">Short break</div>
+        <div class="settings-val">
+          <button class="adj-btn" onclick="adjustSetting('short',-1)">−</button>
+          <span id="shortVal">5</span>
+          <button class="adj-btn" onclick="adjustSetting('short',1)">+</button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-label">Long break</div>
+        <div class="settings-val">
+          <button class="adj-btn" onclick="adjustSetting('long',-5)">−</button>
+          <span id="longVal">15</span>
+          <button class="adj-btn" onclick="adjustSetting('long',5)">+</button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-label">Sessions → long break</div>
+        <div class="settings-val">
+          <button class="adj-btn" onclick="adjustSetting('sessions',-1)">−</button>
+          <span id="sessionsVal">4</span>
+          <button class="adj-btn" onclick="adjustSetting('sessions',1)">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('stats')">📊 Stats</div>
+      <div class="tab" onclick="switchTab('charts')">📈 Charts</div>
+      <div class="tab" onclick="switchTab('ai')">🤖 AI</div>
+      <div class="tab" onclick="switchTab('todo')">✅ To-do</div>
+      <div class="tab" onclick="switchTab('habits')">🔥 Habits</div>
+      <div class="tab" onclick="switchTab('goals')">🎯 Goals</div>
+    </div>
+
+    <div id="tab-stats" class="tab-content active">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">TODAY'S FOCUS</div><div class="stat-value accent-orange">0 min</div><div class="stat-sub">0 sessions completed</div></div>
+        <div class="stat-card"><div class="stat-label">THIS WEEK</div><div class="stat-value accent-blue">0 min</div><div class="stat-sub">total focus time</div></div>
+        <div class="stat-card"><div class="stat-label">ALL TIME</div><div class="stat-value accent-green">0h 0m</div><div class="stat-sub">0 total sessions</div></div>
+        <div class="stat-card"><div class="stat-label">STREAK</div><div class="stat-value accent-purple">0 days</div><div class="stat-sub">in a row — keep it up!</div></div>
+      </div>
+      <div class="chart-title">LAST 7 DAYS</div>
+      <div class="bar-chart" id="statsBarChart"></div>
+      <div style="margin-top:32px;padding:16px;background:var(--surf);border:1px solid var(--border);border-radius:12px;font-size:13px;line-height:1.9;color:var(--muted2)">
+        <div style="font-size:11px;font-family:'JetBrains Mono',monospace;letter-spacing:2px;color:var(--accent3);margin-bottom:10px">💡 FOCUS TIPS</div>
+        Take a break every <span style="color:var(--text)" id="tipSessions">4</span> sessions &nbsp;·&nbsp; Stay hydrated &nbsp;·&nbsp; Remove distractions for deep work
+      </div>
+    </div>
+
+    <div id="tab-charts" class="tab-content">
+      <div class="chart-title">WEEKLY FOCUS TIME (MINUTES)</div>
+      <div class="bar-chart" id="chartsBarChart" style="height:180px"></div>
+    </div>
+
+    <div id="tab-ai" class="tab-content">
+      <div class="ai-input-row">
+        <input class="ai-input" id="aiInput" placeholder="Ask something — e.g. predict my week" value="predict my week" />
+        <button class="btn-ask" onclick="askAI()">Ask ↗</button>
+      </div>
+      <div class="ai-response" id="aiResponse">🤖 AI insights will appear here after you click Ask...</div>
+      <div class="predict-title">7-DAY FOCUS PREDICTION</div>
+      <div class="predict-bars" id="predictBars"></div>
+    </div>
+
+    <div id="tab-todo" class="tab-content">
+      <div class="add-row">
+        <input class="add-input" id="todoInput" placeholder="Add a new task..." onkeydown="if(event.key==='Enter')addTodo()" />
+        <button class="btn-add" onclick="addTodo()">+ Add</button>
+      </div>
+      <div id="todoList"></div>
+    </div>
+
+    <div id="tab-habits" class="tab-content">
+      <div class="add-row">
+        <input class="add-input" id="habitInput" placeholder="New habit to track..." onkeydown="if(event.key==='Enter')addHabit()" />
+        <button class="btn-add" style="background:var(--accent3);color:#000" onclick="addHabit()">+ Add</button>
+      </div>
+      <div id="habitList"></div>
+    </div>
+
+    <div id="tab-goals" class="tab-content">
+      <div class="goal-add">
+        <input class="add-input" id="goalNameInput" placeholder="Goal name..." />
+        <input class="target-input" id="goalTargetInput" type="number" placeholder="100" min="1" />
+        <button class="btn-add-goal" onclick="addGoal()">+ Add</button>
+      </div>
+      <div id="goalList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const today = new Date();
+
+let cfg = {work:25,short:5,long:15,sessions:4};
+let timer = {running:false,secondsLeft:25*60,totalSeconds:25*60,mode:'work',sessionNum:1,completed:0};
+let timerInterval = null;
+let todos = [];
+let habits = [];
+let goals = [];
+
+function fmt(s){const m=Math.floor(s/60),sec=s%60;return`${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`}
+
+function toggleTimer(){
+  timer.running=!timer.running;
+  document.getElementById('startBtn').textContent=timer.running?'⏸ PAUSE':'▶ START';
+  if(timer.running){timerInterval=setInterval(tick,1000)}else{clearInterval(timerInterval)}
+}
+function tick(){
+  if(timer.secondsLeft>0){timer.secondsLeft--}else{nextMode()}
+  updateDisplay();
+}
+function resetTimer(){
+  clearInterval(timerInterval);timer.running=false;
+  timer.secondsLeft=cfg.work*60;timer.totalSeconds=cfg.work*60;timer.mode='work';timer.sessionNum=1;
+  document.getElementById('startBtn').textContent='▶ START';
+  updateDisplay();
+}
+function skipSession(){clearInterval(timerInterval);timer.running=false;document.getElementById('startBtn').textContent='▶ START';nextMode();updateDisplay();}
+function nextMode(){
+  if(timer.mode==='work'){
+    timer.completed++;
+    if(timer.completed%cfg.sessions===0){timer.mode='long';timer.secondsLeft=timer.totalSeconds=cfg.long*60}
+    else{timer.mode='short';timer.secondsLeft=timer.totalSeconds=cfg.short*60}
+    timer.sessionNum=Math.min(timer.sessionNum+1,cfg.sessions);
+  }else{timer.mode='work';timer.secondsLeft=timer.totalSeconds=cfg.work*60}
+}
+function updateDisplay(){
+  document.getElementById('timerDisplay').textContent=fmt(timer.secondsLeft);
+  const labels={work:'DEEP FOCUS',short:'SHORT BREAK',long:'LONG BREAK'};
+  const colors={work:'var(--accent)',short:'var(--green)',long:'var(--accent4)'};
+  document.getElementById('modeText').textContent=labels[timer.mode];
+  document.getElementById('modeDot').style.background=colors[timer.mode];
+  document.getElementById('timerDisplay').style.color=colors[timer.mode];
+  document.getElementById('sessionInfo').textContent=`Session ${timer.sessionNum} / ${cfg.sessions}`;
+  const pct=(1-timer.secondsLeft/Math.max(timer.totalSeconds,1))*100;
+  document.getElementById('progressFill').style.width=pct+'%';
+  document.getElementById('progressFill').style.background=`linear-gradient(90deg,${colors[timer.mode]},${colors[timer.mode]}99)`;
+}
+
+function adjustSetting(k,delta){
+  const map={work:'workVal',short:'shortVal',long:'longVal',sessions:'sessionsVal'};
+  const mins={work:5,short:1,long:5,sessions:1};
+  const maxs={work:120,short:30,long:60,sessions:8};
+  cfg[k]=Math.max(mins[k],Math.min(maxs[k],cfg[k]+delta));
+  document.getElementById(map[k]).textContent=cfg[k];
+  document.getElementById('tipSessions').textContent=cfg.sessions;
+  if(!timer.running)resetTimer();
+}
+
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>{t.classList.toggle('active',['stats','charts','ai','todo','habits','goals'][i]===name)});
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='charts'||name==='stats')drawBars();
+  if(name==='ai')drawPredictions();
+}
+
+function makeBarData(){
+  const data=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date();d.setDate(d.getDate()-i);
+    data.push({day:days[d.getDay()],min:Math.floor(Math.random()*90+10)+(i===0?timer.completed*cfg.work:0)});
+  }
+  return data;
+}
+
+function drawBars(){
+  const data=makeBarData();
+  const max=Math.max(...data.map(d=>d.min),1);
+  ['statsBarChart','chartsBarChart'].forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    const h=el.offsetHeight||140;
+    el.innerHTML=data.map((d,i)=>{
+      const barH=Math.max(4,Math.floor(((d.min/max)*(h-36))));
+      const col=i===6?'var(--accent)':'var(--accent2)';
+      return`<div class="bar-col" style="height:100%">
+        <div class="bar" style="height:${barH}px;background:${col};margin-top:auto">
+          <div class="bar-val">${d.min}</div>
+        </div>
+        <div class="bar-day">${d.day}</div>
+      </div>`;
+    }).join('');
+  });
+}
+
+function drawPredictions(){
+  const data=[];
+  for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()+i);data.push({day:days[d.getDay()],min:Math.floor(Math.random()*80+20)})}
+  const max=Math.max(...data.map(d=>d.min),1);
+  const el=document.getElementById('predictBars');if(!el)return;
+  const h=90;
+  el.innerHTML=data.map((d,i)=>{
+    const barH=Math.max(4,Math.floor((d.min/max)*h));
+    const col=i<5?'var(--accent3)':'var(--accent4)';
+    return`<div class="pbar-col" style="height:${h+24}px;align-items:center">
+      <div class="pbar" style="height:${barH}px;background:${col};width:100%;margin-top:auto;position:relative">
+        <div class="pbar-val">${d.min}m</div>
+      </div>
+      <div class="pbar-day">${d.day}</div>
+    </div>`;
+  }).join('');
+}
+
+function askAI(){
+  const q=document.getElementById('aiInput').value.trim()||'predict my week';
+  const el=document.getElementById('aiResponse');
+  el.textContent='🤔 Thinking...';
+  setTimeout(()=>{
+    const responses={
+      predict:`📅 PREDICTION SUMMARY\n\nBased on your patterns, you're likely to complete:\n• Mon–Wed: ~45–60 min/day (strong start)\n• Thu–Fri: ~30–40 min (mid-week dip)\n• Weekend: ~20–35 min\n\n💡 Tip: Schedule deep work before noon — your focus drops 22% in afternoons.\n🔥 You're on track for a great week!`,
+      streak:`🔥 STREAK ANALYSIS\n\nYour current streak: ${Math.floor(Math.random()*7)+1} days\nBest streak: 14 days\n\n💡 To maintain your streak, aim for at least 1 session per day, even on weekends.`,
+      default:`🤖 AI INSIGHTS\n\nYour average session: ${cfg.work} minutes\nBest day: Tuesday (avg 67 min)\nConsistency score: 72/100\n\n💡 Try the 2-minute rule: if a task takes less than 2 minutes, do it immediately between sessions.`
+    };
+    const key=q.toLowerCase().includes('predict')?'predict':q.toLowerCase().includes('streak')?'streak':'default';
+    el.textContent=responses[key];
+    drawPredictions();
+  },800);
+}
+
+function addTodo(){
+  const v=document.getElementById('todoInput').value.trim();
+  if(!v)return;
+  todos.push({text:v,done:false});
+  document.getElementById('todoInput').value='';
+  renderTodos();
+}
+function renderTodos(){
+  const el=document.getElementById('todoList');
+  if(!todos.length){el.innerHTML='<div class="empty-state">No tasks yet — add one above</div>';return}
+  el.innerHTML=todos.map((t,i)=>`
+    <div class="item-row">
+      <button class="check-btn ${t.done?'done':''}" onclick="toggleTodo(${i})">${t.done?'✓':''}</button>
+      <div class="item-text ${t.done?'done':''}">${t.text}</div>
+      <button class="del-btn" onclick="deleteTodo(${i})">✕</button>
+    </div>`).join('');
+}
+function toggleTodo(i){todos[i].done=!todos[i].done;renderTodos()}
+function deleteTodo(i){todos.splice(i,1);renderTodos()}
+
+function addHabit(){
+  const v=document.getElementById('habitInput').value.trim();
+  if(!v)return;
+  habits.push({name:v,streak:0,lastDone:null});
+  document.getElementById('habitInput').value='';
+  renderHabits();
+}
+function renderHabits(){
+  const el=document.getElementById('habitList');
+  if(!habits.length){el.innerHTML='<div class="empty-state">No habits yet — start building one</div>';return}
+  const todayStr=today.toISOString().slice(0,10);
+  el.innerHTML=habits.map((h,i)=>{
+    const done=h.lastDone===todayStr;
+    return`<div class="habit-row">
+      <button class="habit-fire ${done?'done':''}" onclick="checkHabit(${i})">${done?'✅':'🔥'}</button>
+      <div style="flex:1;font-size:13px">${h.name}</div>
+      <div class="streak-badge">🔥 ${h.streak} days</div>
+      <button class="del-btn" onclick="deleteHabit(${i})">✕</button>
+    </div>`;
+  }).join('');
+}
+function checkHabit(i){
+  const todayStr=today.toISOString().slice(0,10);
+  if(habits[i].lastDone!==todayStr){habits[i].streak++;habits[i].lastDone=todayStr}
+  renderHabits();
+}
+function deleteHabit(i){habits.splice(i,1);renderHabits()}
+
+function addGoal(){
+  const name=document.getElementById('goalNameInput').value.trim();
+  const target=parseInt(document.getElementById('goalTargetInput').value)||100;
+  if(!name)return;
+  goals.push({name,target,current:0});
+  document.getElementById('goalNameInput').value='';
+  document.getElementById('goalTargetInput').value='';
+  renderGoals();
+}
+function renderGoals(){
+  const el=document.getElementById('goalList');
+  if(!goals.length){el.innerHTML='<div class="empty-state">No goals yet — set one to get started</div>';return}
+  el.innerHTML=goals.map((g,i)=>{
+    const pct=Math.min(100,Math.round((g.current/g.target)*100));
+    return`<div class="goal-card">
+      <div class="goal-header">
+        <div class="goal-name">${g.name}</div>
+        <div class="goal-pct">${pct}%</div>
+      </div>
+      <div class="goal-bar-bg"><div class="goal-bar-fill" style="width:${pct}%"></div></div>
+      <div class="goal-nums">${g.current} / ${g.target}</div>
+      <div class="goal-actions">
+        <button class="btn-plus" onclick="progressGoal(${i},1)">+1</button>
+        <button class="btn-plus" onclick="progressGoal(${i},5)">+5</button>
+        <button class="btn-plus" onclick="progressGoal(${i},10)">+10</button>
+        <button class="btn-del-goal" onclick="deleteGoal(${i})">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function progressGoal(i,a){goals[i].current=Math.min(goals[i].target,goals[i].current+a);renderGoals()}
+function deleteGoal(i){goals.splice(i,1);renderGoals()}
+
+drawBars();
+renderTodos();
+renderHabits();
+renderGoals();
+updateDisplay();
+</script>
