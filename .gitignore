@@ -1,6 +1,0 @@
-__pycache__/
-*.pyc
-venv/
-study_history.json
-.env
-.vscode/
